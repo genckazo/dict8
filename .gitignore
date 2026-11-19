@@ -1,6 +1,4 @@
-.DS_Store
-.build/
-.swiftpm/
-.release/
+build/
 *.ipa
-.env.local
+DerivedData/
+.DS_Store
