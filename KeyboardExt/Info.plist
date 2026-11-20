@@ -20,6 +20,10 @@
 	<string>2.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>dict8 uses the microphone to turn your speech into text.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>dict8 uses speech recognition to turn your voice into text on the keyboard.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>

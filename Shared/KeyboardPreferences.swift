@@ -17,9 +17,10 @@ enum KeyboardPreferences {
         static let layout = "kb.layout"
         static let haptics = "kb.haptics"
         static let sounds = "kb.sounds"
-        static let appearance = "kb.appearance"
         static let autoCapitalize = "kb.autoCapitalize"
         static let dictationLocale = "kb.dictationLocale"
+        static let recentEmojis = "kb.recentEmojis"
+        static let onDeviceDictation = "kb.onDeviceDictation"
         static let hasCompletedOnboarding = "app.onboarded"
     }
 
@@ -38,11 +39,6 @@ enum KeyboardPreferences {
         set { store.set(newValue, forKey: Key.sounds) }
     }
 
-    static var appearance: KeyboardAppearanceID {
-        get { KeyboardAppearanceID(rawValue: store.string(forKey: Key.appearance) ?? "") ?? .system }
-        set { store.set(newValue.rawValue, forKey: Key.appearance) }
-    }
-
     static var autoCapitalize: Bool {
         get { store.object(forKey: Key.autoCapitalize) as? Bool ?? true }
         set { store.set(newValue, forKey: Key.autoCapitalize) }
@@ -51,6 +47,17 @@ enum KeyboardPreferences {
     static var dictationLocale: String {
         get { store.string(forKey: Key.dictationLocale) ?? Locale.current.identifier }
         set { store.set(newValue, forKey: Key.dictationLocale) }
+    }
+
+    /// Off by default: speech goes to Apple's servers, which is quicker and more accurate.
+    static var onDeviceDictation: Bool {
+        get { store.bool(forKey: Key.onDeviceDictation) }
+        set { store.set(newValue, forKey: Key.onDeviceDictation) }
+    }
+
+    static var recentEmojis: [String] {
+        get { store.stringArray(forKey: Key.recentEmojis) ?? [] }
+        set { store.set(Array(newValue.prefix(24)), forKey: Key.recentEmojis) }
     }
 
     static var hasCompletedOnboarding: Bool {
@@ -79,30 +86,6 @@ enum KeyboardLayoutID: String, CaseIterable, Identifiable {
         case .qwerty: return "EN"
         case .qwertz: return "DE"
         case .turkish: return "TR"
-        }
-    }
-}
-
-enum KeyboardAppearanceID: String, CaseIterable, Identifiable {
-    case system
-    case light
-    case dark
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .system: return "Match system"
-        case .light: return "Light"
-        case .dark: return "Dark"
-        }
-    }
-
-    var interfaceStyle: UIUserInterfaceStyle {
-        switch self {
-        case .system: return .unspecified
-        case .light: return .light
-        case .dark: return .dark
         }
     }
 }
