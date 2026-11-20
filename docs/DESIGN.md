@@ -1,49 +1,55 @@
 # dict8 — design spec
 
-The keyboard follows the system keyboard's proportions with a darker, softer key treatment. Values below are the ones the shipped code uses; change them in one place and both the keyboard and the showcase render follow.
+The keyboard is drawn on the system keyboard backdrop: it paints no background of its own, so its keys sit on the same surface as the globe strip iOS draws underneath. Values below are the ones the shipped code uses (`KeyboardExt/KeyboardTheme.swift`, `KeyRowView.swift`, `TopBarView.swift`, `ActionPillRow.swift`).
 
-## Figma status
+## Figma
 
-Figma is connected through the desktop MCP, but that MCP can only read a design (`get_design_context`, `get_metadata`, `get_screenshot`, Code Connect). It cannot create frames, so the design cannot be drawn in Figma from here. The open file contains one empty page.
+Drag `docs/dict8-keyboard.figma.svg` into a Figma page. It lands as vector layers named per part (`keyboard-dark-letters`, `top-bar`, `pill-search`, `row-2`, `key-Q`) at 1 unit = 1 pt. Regenerate it with `python3 scripts/make_figma_board.py` after a token change. The board has four frames: dark, dictating, numbers page, light. Icons on the board are simple stand-ins for the SF Symbols the app uses.
 
-To bring the design into Figma, either:
+## Structure, top to bottom
 
-1. paste `docs/showcase.png` into a new frame and send the frame URL — then colours, type and spacing can be pulled back for comparison, or
-2. create the frame with these tokens; they map 1:1 to the code.
+| Part | Contents |
+|---|---|
+| Top bar | menu button (opens settings) · three word suggestions · voice button |
+| Action pills | fix spelling · paste · emoji search · polish |
+| Keys | three letter rows and the bottom row: `123`, emoji, space, return |
+| System strip | globe and system dictation, drawn by iOS |
+
+While dictating, the suggestions are replaced by a live level meter and a timer, and the voice button turns into a red stop button. Status messages and the emoji search query use the same middle section.
 
 ## Tokens
 
 | Token | Dark | Light |
 |---|---|---|
-| Keyboard background | `#1C1C1E` (white 0.11) | `#D4D4D4` (white 0.83) |
-| Character key | `#3B3B3D` (white 0.23) | `#FFFFFF` |
-| Special key (shift, delete, 123, globe, return) | `#4A4A4C` (white 0.29) | `#D1D1D6` (white 0.82) |
-| Key label | `#FFFFFF` | `#000000` |
-| Mic (idle) | special key | special key |
-| Mic (recording) | `#FF453A` | `#FF453A` |
+| Key and pill | `#454547` | `#FFFFFF` |
+| Key pressed | `#6B6B6E` | `#C7C9D1` |
+| Label and icons | `#FFFFFF` | `#000000` |
+| Suggestion text | white 62% grey | white 38% grey |
+| Divider | white 14% | black 16% |
+| Voice button | white, black icon | black, white icon |
+| Voice button, recording | `#FF453A`, white icon | same |
+| Settings panel | `#2B2B2D` | `#D1D4DB` |
 
-## Metrics
+Light or dark follows the system and the host app's keyboard appearance. There is no manual override, because the backdrop is drawn by iOS and cannot be restyled from the extension.
+
+## Metrics (402 pt wide phone, portrait)
 
 | Item | Value |
 |---|---|
-| Keyboard height, portrait | 292 pt |
-| Keyboard height, landscape | 236 pt |
-| Key corner radius | 9 pt (showcase 12 pt at 2×) |
-| Key gap | 6 pt |
-| Row gap | 7 pt |
-| Outer padding | 3 pt horizontal, 4 pt vertical |
-| Suggestion/status strip | 30 pt |
-| Letter label | 22 pt regular, auto-shrinks to 60% |
-| Special key label | 15 pt medium |
-| Bottom row weights | 1.2 · 1.1 · 1.2 · 4.4 · 1.7 |
-| Row weights | letters 1, shift/delete 1.45 |
-| Key shadow | black 14%, radius 1, offset 0/1 |
+| Keyboard view height | 319 pt on iOS 26 and later (the system adds about 15 pt above it), 332 pt before |
+| Top bar | 56 pt tall; voice button 36 pt circle, 30 pt from the right edge |
+| Suggestions | three equal columns between x = 57 and width − 57; 18 pt regular |
+| Action pills | 40 pt tall capsules, 8 pt side inset, 8 pt gap |
+| Key row pitch | 54 pt; keys 42.3 pt tall |
+| Key width | one tenth of the row: (width − 13 − 9 × 6) / 10 ≈ 33.5 pt |
+| Key gap | 6 pt; side inset 6.5 pt |
+| Key corner radius | 5.5 pt, continuous |
+| Shift, delete, 123, emoji | 1.35 × key width |
+| Return | 2.75 × key width |
+| Letter label | 23 pt regular; `123`, `ABC`, `#+=` 16 pt |
+| Touch targets | each key reaches halfway into the gaps around it |
 
-## Reference image
-
-The design brief was a screenshot of a dark messaging app with a rounded-key keyboard. What was taken from it: dark key wells on a darker background, generous 9–12 pt corners, key labels in regular weight, a wide space bar with the mic treated as a coloured key, and a slim strip above the keys for status.
-
-What was not taken: the app's tool-chip row and its three suggestion words. Those belong to the host app, and dict8 has no prediction engine to fill three real suggestions, so the strip shows the dictation state instead of placeholder text.
+Landscape drops the pill row and uses a 40 pt top bar and 40 pt row pitch (206 pt in total).
 
 ## Layouts
 
@@ -51,4 +57,4 @@ What was not taken: the app's tool-chip row and its three suggestion words. Thos
 - QWERTZ — `qwertzuiop / asdfghjkl / ⇧yxcvbnm⌫`, accents on a o u s (ä ö ü ß)
 - Turkish QWERTY — `qwertyuıop / asdfghjkl / ⇧zxcvbnm⌫`, accents on g u i ı o c s (ğ ü ı ö ç ş)
 
-Pages: letters, `?123`, `#+=`. Accent menus are long-press and follow one-shot shift.
+Pages: letters, `123`, `#+=`, emoji. Accent menus are long-press and follow shift. The layout also sets the language for suggestions, spelling fixes and dictation.

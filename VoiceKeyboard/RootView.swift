@@ -27,10 +27,10 @@ struct SetupView: View {
     @State private var micGranted = AVAudioApplication.shared.recordPermission == .granted
     @State private var speechGranted = SFSpeechRecognizer.authorizationStatus() == .authorized
     @State private var layout: KeyboardLayoutID = KeyboardPreferences.layout
-    @State private var appearance: KeyboardAppearanceID = KeyboardPreferences.appearance
     @State private var haptics = KeyboardPreferences.haptics
     @State private var sounds = KeyboardPreferences.sounds
     @State private var autoCapitalize = KeyboardPreferences.autoCapitalize
+    @State private var onDeviceDictation = KeyboardPreferences.onDeviceDictation
 
     var body: some View {
         NavigationStack {
@@ -121,26 +121,21 @@ struct SetupView: View {
             }
             .onChange(of: layout) { _, newValue in KeyboardPreferences.layout = newValue }
 
-            Picker("Appearance", selection: $appearance) {
-                ForEach(KeyboardAppearanceID.allCases) { id in
-                    Text(id.displayName).tag(id)
-                }
-            }
-            .onChange(of: appearance) { _, newValue in KeyboardPreferences.appearance = newValue }
-
             Toggle("Haptics", isOn: $haptics)
                 .onChange(of: haptics) { _, newValue in KeyboardPreferences.haptics = newValue }
             Toggle("Key sounds", isOn: $sounds)
                 .onChange(of: sounds) { _, newValue in KeyboardPreferences.sounds = newValue }
             Toggle("Auto-capitalise", isOn: $autoCapitalize)
                 .onChange(of: autoCapitalize) { _, newValue in KeyboardPreferences.autoCapitalize = newValue }
+            Toggle("Dictate on device only (slower)", isOn: $onDeviceDictation)
+                .onChange(of: onDeviceDictation) { _, newValue in KeyboardPreferences.onDeviceDictation = newValue }
         }
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var footer: some View {
-        Text("Settings are shared with the keyboard when the app group is available; otherwise change layout and appearance from the gear key on the keyboard itself.")
+        Text("Settings are shared with the keyboard when the app group is available; otherwise change them from the menu button on the keyboard itself.")
             .font(.footnote)
             .foregroundStyle(.secondary)
     }

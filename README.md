@@ -6,16 +6,19 @@ A native iOS keyboard extension with on-device voice dictation. Type with your v
 
 ## Features
 
-- **Voice dictation** — tap the mic key, speak, text appears live as you talk. Partial results replace in place; final transcript commits cleanly.
-- **Three layouts** — QWERTY, QWERTZ, and Turkish, selectable in the app or from the gear key on the keyboard.
-- **?123 and #+= pages** — numbers, punctuation, and symbols, with the standard page switching.
-- **Long-press accents** — ä ö ü ß, ğ ü ş ı ö ç and more, with one-shot shift support.
-- **Shift and caps lock** — single press, double-tap for caps, auto-capitalise after sentence endings.
+- **Voice dictation** — tap the round voice button, speak, and text appears live as you talk. A level meter and timer show while it listens; tap again to stop.
+- **Word suggestions** — three completions and spelling corrections for the word being typed, from the system dictionary.
+- **Action pills** — fix spelling in what you just wrote, paste, search emoji by name, and polish text with the on-device Apple Intelligence model (iOS 26 or later).
+- **Emoji picker** — categories, recents, and flags.
+- **Three layouts** — QWERTY, QWERTZ, and Turkish, selectable in the app or from the menu button on the keyboard.
+- **123 and #+= pages** — numbers, punctuation, and symbols.
+- **Long-press accents** — ä ö ü ß, ğ ü ş ı ö ç and more.
+- **Typing comforts** — shift and double-tap caps lock, auto-capitalise, double-space full stop, hold delete to erase whole words, hold space to move the cursor.
 - **Haptics and key sounds** — both toggleable.
-- **Light / dark / system** appearance, applied instantly.
-- **Retuned return key** — shows go, search, send, done, etc. based on the host app.
+- **Light and dark** — follows the system.
+- **Return key label** — go, search, send, done, etc. based on the host app.
 - **Onboarding + test field** in the containing app, plus a settings panel on the keyboard itself.
-- **App Group sharing** — layout, appearance, and toggles sync between the app and the extension.
+- **App Group sharing** — layout and toggles sync between the app and the extension.
 
 ## Requirements
 
