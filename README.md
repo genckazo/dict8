@@ -1,4 +1,6 @@
-# Voice Keyboard
+# dict8
+
+![dict8 keyboard](docs/showcase.png)
 
 A native iOS keyboard extension with on-device voice dictation. Type with your voice in any app — Messages, Notes, Safari, Mail — without switching apps or granting network access beyond what speech recognition needs.
 
@@ -26,8 +28,8 @@ A native iOS keyboard extension with on-device voice dictation. Type with your v
 1. Open `VoiceKeyboard.xcodeproj` in Xcode.
 2. Select your development team in both targets (app + keyboard extension).
 3. Build and run on a device.
-4. On the device: **Settings → General → Keyboard → Keyboards → Add New Keyboard → Voice Keyboard**, then tap it and enable **Allow Full Access** (required for the microphone).
-5. In any text field, switch to Voice Keyboard with the globe key and tap the mic.
+4. On the device: **Settings → General → Keyboard → Keyboards → Add New Keyboard → dict8**, then tap it and enable **Allow Full Access** (required for the microphone).
+5. In any text field, switch to dict8 with the globe key and tap the mic.
 
 ## Project layout
 
@@ -35,8 +37,14 @@ A native iOS keyboard extension with on-device voice dictation. Type with your v
 VoiceKeyboard/          # Containing app (SwiftUI onboarding + test field)
 KeyboardExt/            # Keyboard extension (UIKit)
 Shared/                 # Shared models + preferences (App Group)
+docs/                   # Design spec + showcase image
+scripts/                # Project and asset generators
 VoiceKeyboard.xcodeproj
 ```
+
+## Design
+
+Key sizes, colours, spacing, and the Figma status are documented in [`docs/DESIGN.md`](docs/DESIGN.md). The showcase image is rendered from the same tokens by `scripts/make_showcase.swift`.
 
 ## Privacy
 

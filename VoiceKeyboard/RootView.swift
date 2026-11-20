@@ -44,7 +44,7 @@ struct SetupView: View {
                 }
                 .padding(20)
             }
-            .navigationTitle("Voice Keyboard")
+            .navigationTitle("dict8")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -70,7 +70,7 @@ struct SetupView: View {
         VStack(alignment: .leading, spacing: 12) {
             StepRow(number: 1,
                     title: "Turn on the keyboard",
-                    detail: "Settings › General › Keyboard › Keyboards › Add New Keyboard › Voice Keyboard.")
+                    detail: "Settings › General › Keyboard › Keyboards › Add New Keyboard › dict8.")
             Button {
                 openKeyboardSettings()
             } label: {
@@ -81,11 +81,11 @@ struct SetupView: View {
 
             StepRow(number: 2,
                     title: "Allow Full Access",
-                    detail: "Tap Voice Keyboard in the keyboard list and switch on Allow Full Access. Dictation needs it for the microphone.")
+                    detail: "Tap dict8 in the keyboard list and switch on Allow Full Access. Dictation needs it for the microphone.")
 
             StepRow(number: 3,
                     title: "Dictate anywhere",
-                    detail: "In any app, switch to Voice Keyboard and tap the microphone key. Text appears as you speak.")
+                    detail: "In any app, switch to dict8 and tap the microphone key. Text appears as you speak.")
         }
     }
 
@@ -203,7 +203,7 @@ struct TestView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Tap the field, switch to Voice Keyboard with the globe key, then type or dictate.")
+                Text("Tap the field, switch to dict8 with the globe key, then type or dictate.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 

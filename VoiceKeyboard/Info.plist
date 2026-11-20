@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Voice Keyboard</string>
+	<string>dict8</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -40,8 +40,8 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Voice Keyboard uses the microphone to turn your speech into text.</string>
+	<string>dict8 uses the microphone to turn your speech into text.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Voice Keyboard uses speech recognition to turn your voice into text on the keyboard.</string>
+	<string>dict8 uses speech recognition to turn your voice into text on the keyboard.</string>
 </dict>
 </plist>

@@ -81,7 +81,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         let isLandscape = size.width > size.height
-        heightConstraint?.constant = isLandscape ? 224 : 268
+        heightConstraint?.constant = isLandscape ? 236 : 292
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
@@ -102,7 +102,7 @@ final class KeyboardViewController: UIInputViewController {
     private func configureHierarchy() {
         view.backgroundColor = .clear
 
-        let height = view.heightAnchor.constraint(equalToConstant: 268)
+        let height = view.heightAnchor.constraint(equalToConstant: 292)
         height.priority = .init(999)
         height.isActive = true
         heightConstraint = height
@@ -120,8 +120,9 @@ final class KeyboardViewController: UIInputViewController {
             rootStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -4)
         ])
 
-        statusLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
         statusLabel.textColor = .secondaryLabel
+        statusLabel.textAlignment = .center
         statusLabel.adjustsFontSizeToFitWidth = true
         statusLabel.minimumScaleFactor = 0.7
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -133,22 +134,22 @@ final class KeyboardViewController: UIInputViewController {
 
         topBar.addSubview(statusLabel)
         topBar.addSubview(settingsButton)
-        topBar.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        topBar.heightAnchor.constraint(equalToConstant: 30).isActive = true
         NSLayoutConstraint.activate([
-            statusLabel.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 6),
-            statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: settingsButton.leadingAnchor, constant: -6),
+            statusLabel.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 16),
+            statusLabel.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -44),
             statusLabel.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
-            settingsButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -6),
+            settingsButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -10),
             settingsButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
-            settingsButton.widthAnchor.constraint(equalToConstant: 28),
-            settingsButton.heightAnchor.constraint(equalToConstant: 24)
+            settingsButton.widthAnchor.constraint(equalToConstant: 26),
+            settingsButton.heightAnchor.constraint(equalToConstant: 28)
         ])
 
         [topBar, row1, row2, row3, row4].forEach { rootStack.addArrangedSubview($0) }
         row2.heightAnchor.constraint(equalTo: row1.heightAnchor).isActive = true
         row3.heightAnchor.constraint(equalTo: row1.heightAnchor).isActive = true
         row4.heightAnchor.constraint(equalTo: row1.heightAnchor, multiplier: 1.15).isActive = true
-        statusLabel.text = "Voice Keyboard"
+        statusLabel.text = "dict8"
     }
 
     private func buildKeys() {
@@ -379,7 +380,7 @@ final class KeyboardViewController: UIInputViewController {
             case .system: return traitCollection.userInterfaceStyle == .dark
             }
         }()
-        view.backgroundColor = dark ? UIColor(white: 0.2, alpha: 1) : UIColor(white: 0.82, alpha: 1)
+        view.backgroundColor = dark ? UIColor(white: 0.11, alpha: 1) : UIColor(white: 0.83, alpha: 1)
         settingsPanel.backgroundColor = view.backgroundColor
         settingsButton.tintColor = dark ? .white : .darkGray
         statusLabel.textColor = dark ? UIColor(white: 0.75, alpha: 1) : .darkGray
@@ -522,10 +523,10 @@ final class KeyboardViewController: UIInputViewController {
             return setStatus("Enable Allow Full Access for this keyboard.")
         }
         guard AVAudioApplication.shared.recordPermission == .granted else {
-            return setStatus("Grant microphone access in the Voice Keyboard app.")
+            return setStatus("Grant microphone access in the dict8 app.")
         }
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
-            return setStatus("Grant speech recognition in the Voice Keyboard app.")
+            return setStatus("Grant speech recognition in the dict8 app.")
         }
         let language = definition.localeIdentifier
         let speech = SFSpeechRecognizer(locale: Locale(identifier: language))

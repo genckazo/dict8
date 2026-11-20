@@ -1,4 +1,4 @@
-# Voice Keyboard — On-device Acceptance Checklist
+# dict8 — On-device Acceptance Checklist
 
 Status: NOT RUN. No device install yet (free-profile slot blocker). Do not mark PASS until executed on the iPhone 16 Pro.
 
@@ -12,10 +12,10 @@ Result key: PASS / FAIL / BLOCKED. Attach screenshot per item.
 0.1 Install app on phone. Steps: remove one free-profile app (LiveContainer) to free slot; install build/ipa/VoiceKeyboard.ipa. Expected: app icon appears, launches to onboarding. Pass/Fail: ___
 
 ## 1. Keyboard discovery & activation
-1.1 Settings > General > Keyboard > Keyboards lists "Voice Keyboard". Steps: open Settings, navigate. Expected: entry present. Pass/Fail: ___
-1.2 Enable it. Steps: tap Keyboards > Add New Keyboard > Voice Keyboard. Expected: appears in list, no crash. Pass/Fail: ___
-1.3 Activate in a text field. Steps: open Messages, tap compose, globe/hold space, select Voice Keyboard. Expected: keyboard renders, 268pt portrait height, no crash. Pass/Fail: ___
-1.4 Full Access toggle. Steps: Settings > Voice Keyboard > Allow Full Access on. Expected: toggle flips, no crash; off-state shows "Enable Allow Full Access". Pass/Fail: ___
+1.1 Settings > General > Keyboard > Keyboards lists "dict8". Steps: open Settings, navigate. Expected: entry present. Pass/Fail: ___
+1.2 Enable it. Steps: tap Keyboards > Add New Keyboard > dict8. Expected: appears in list, no crash. Pass/Fail: ___
+1.3 Activate in a text field. Steps: open Messages, tap compose, globe/hold space, select dict8. Expected: keyboard renders, 268pt portrait height, no crash. Pass/Fail: ___
+1.4 Full Access toggle. Steps: Settings > dict8 > Allow Full Access on. Expected: toggle flips, no crash; off-state shows "Enable Allow Full Access". Pass/Fail: ___
 
 ## 2. Layout switching (gear panel)
 2.1 Open gear panel. Steps: tap gear icon top-right. Expected: panel overlays keyboard with Layout segmented control (QWERTY/QWERTZ/Turkish), Haptics/Key sounds/Auto-capitalize switches, Appearance control, Done. Pass/Fail: ___
@@ -63,7 +63,7 @@ Result key: PASS / FAIL / BLOCKED. Attach screenshot per item.
 
 ## 11. Dictation
 11.1 Permission prompts. Steps: tap 🎤 with no mic/speech permission. Expected: status "Grant microphone access..." / "Grant speech recognition..."; no crash. (Permissions granted in containing app first.) Pass/Fail: ___
-11.2 Grant in containing app. Steps: open Voice Keyboard app, grant Microphone + Speech Recognition. Expected: toggles/permissions set. Pass/Fail: ___
+11.2 Grant in containing app. Steps: open dict8 app, grant Microphone + Speech Recognition. Expected: toggles/permissions set. Pass/Fail: ___
 11.3 Partial text. Steps: tap 🎤, speak a sentence. Expected: status "Listening Xs", partial transcription inserts into field and updates in place. Pass/Fail: ___
 11.4 Stop. Steps: tap 🎤 again (or stop). Expected: capture stops, status "Inserted"/"Done", mic icon not recording. (KNOWN BUG: may keep recording after final.) Pass/Fail: ___
 11.5 Insertion targets. Steps: dictation in Messages, Notes, Safari. Expected: text lands in each field. Pass/Fail: ___
