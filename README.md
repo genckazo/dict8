@@ -7,6 +7,7 @@ A native iOS keyboard extension with on-device voice dictation. Type with your v
 ## Features
 
 - **Voice dictation** — tap the round voice button, speak, and text appears live as you talk. A level meter and timer show while it listens; tap again to stop.
+- **Autocorrect that learns you** — fixes slips when you finish a word, judging them by which keys sit next to each other and where your own taps tend to land. One backspace puts back what you typed, and it leaves that word alone from then on. Words you use that the dictionary does not know are learned and suggested. Everything it learns stays on the phone and can be reset in the app.
 - **Word suggestions** — three completions and spelling corrections for the word being typed, from the system dictionary.
 - **Action pills** — fix spelling in what you just wrote, paste, search emoji by name, and polish text with the on-device Apple Intelligence model (iOS 26 or later).
 - **Emoji picker** — categories, recents, and flags.

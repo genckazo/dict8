@@ -21,6 +21,8 @@ enum KeyboardPreferences {
         static let dictationLocale = "kb.dictationLocale"
         static let recentEmojis = "kb.recentEmojis"
         static let onDeviceDictation = "kb.onDeviceDictation"
+        static let autoCorrect = "kb.autoCorrect"
+        static let personalModel = "kb.personalModel"
         static let hasCompletedOnboarding = "app.onboarded"
     }
 
@@ -53,6 +55,17 @@ enum KeyboardPreferences {
     static var onDeviceDictation: Bool {
         get { store.bool(forKey: Key.onDeviceDictation) }
         set { store.set(newValue, forKey: Key.onDeviceDictation) }
+    }
+
+    static var autoCorrect: Bool {
+        get { store.object(forKey: Key.autoCorrect) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.autoCorrect) }
+    }
+
+    /// The learned typing model, encoded by the keyboard. Setting nil forgets everything.
+    static var personalModel: Data? {
+        get { store.data(forKey: Key.personalModel) }
+        set { store.set(newValue, forKey: Key.personalModel) }
     }
 
     static var recentEmojis: [String] {

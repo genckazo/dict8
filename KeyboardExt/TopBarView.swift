@@ -18,6 +18,7 @@ final class TopBarView: UIView {
 
     private var theme = KeyboardTheme.dark
     private var suggestions: [String] = []
+    private var emphasised: Int?
     private var transientStatus: String?
     private var statusReset: DispatchWorkItem?
     private var searchText: String?
@@ -68,8 +69,10 @@ final class TopBarView: UIView {
 
     // MARK: - Content
 
-    func setSuggestions(_ words: [String]) {
+    /// `emphasised` marks the word autocorrect will type when the word is finished.
+    func setSuggestions(_ words: [String], emphasised index: Int? = nil) {
         suggestions = Array(words.prefix(3))
+        emphasised = index
         render()
     }
 
@@ -143,6 +146,9 @@ final class TopBarView: UIView {
         for (index, button) in suggestionButtons.enumerated() {
             let word = index < suggestions.count ? suggestions[index] : ""
             button.setTitle(word, for: .normal)
+            let strong = index == emphasised
+            button.setTitleColor(strong ? theme.label : theme.secondaryLabel, for: .normal)
+            button.titleLabel?.font = .systemFont(ofSize: 18, weight: strong ? .medium : .regular)
             button.isHidden = !showsWords
             button.isEnabled = !word.isEmpty
         }
