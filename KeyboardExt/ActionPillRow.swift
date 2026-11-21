@@ -57,6 +57,13 @@ final class ActionPillRow: UIView {
         }
     }
 
+    /// Extra choices shown when the polish pill is held.
+    func setPolishMenu(_ menu: UIMenu) {
+        let button = buttons[Action.polish.rawValue]
+        button.menu = menu
+        button.showsMenuAsPrimaryAction = false
+    }
+
     /// Spins the icon's opacity while a slow action (the polish request) is running.
     func setBusy(_ busy: Bool, action: Action) {
         let button = buttons[action.rawValue]

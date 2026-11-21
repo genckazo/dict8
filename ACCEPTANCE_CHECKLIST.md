@@ -1,84 +1,51 @@
-# dict8 — On-device Acceptance Checklist
+# dict8 2.1 — on-device acceptance checklist
 
-Status: NOT RUN. No device install yet (free-profile slot blocker). Do not mark PASS until executed on the iPhone 16 Pro.
+Run on a real iPhone; the simulator has no microphone and its taps always land dead centre.
+Result key: PASS / FAIL / BLOCKED.
 
-Device: iPhone 16 Pro (00008140-0009542C3688801C), iOS 18.x.
-Build under test: Release, team 5YKGZQWSA3, VoiceKeyboard.app + VoiceKeyboardKeyboard.appex.
-Known open code issues (Change Reviewer): backspace has no auto-repeat, dictation does not stop on final result, accent long-press ignores one-shot shift, layout switch drops shift title. Verify these are fixed before running, or expect FAIL.
+Status at release: sections 1–3 were exercised in the simulator. Dictation of several sentences was confirmed on an iPhone 16 Pro (iOS 27.0). Everything marked *device* is otherwise unverified.
 
-Result key: PASS / FAIL / BLOCKED. Attach screenshot per item.
+## 1. Setup
+1.1 Settings → General → Keyboard → Keyboards → Add New Keyboard → dict8. Expected: listed and selectable.
+1.2 Allow Full Access on. Expected: voice button and paste work; with it off they explain what is missing.
+1.3 Microphone and speech recognition granted in the dict8 app.
 
-## 0. Prerequisites
-0.1 Install app on phone. Steps: remove one free-profile app (LiveContainer) to free slot; install build/ipa/VoiceKeyboard.ipa. Expected: app icon appears, launches to onboarding. Pass/Fail: ___
+## 2. Typing
+2.1 Letters, shift, double-tap caps lock, auto-capitalise after a full stop.
+2.2 Double space types a full stop. Hold delete erases letters, then whole words.
+2.3 `123` and `#+=` pages; space returns to letters.
+2.4 Key pop-up appears above a held letter and goes away on release. Off when "Key pop-ups" is off.
+2.5 Hold space, drag: the cursor moves. *device*
+2.6 Long-press accents on the German and Turkish layouts. *device*
+2.7 Landscape: pill row hidden, keys fit. *device*
+2.8 Return key reads go / search / send in fields that ask for it. *device*
 
-## 1. Keyboard discovery & activation
-1.1 Settings > General > Keyboard > Keyboards lists "dict8". Steps: open Settings, navigate. Expected: entry present. Pass/Fail: ___
-1.2 Enable it. Steps: tap Keyboards > Add New Keyboard > dict8. Expected: appears in list, no crash. Pass/Fail: ___
-1.3 Activate in a text field. Steps: open Messages, tap compose, globe/hold space, select dict8. Expected: keyboard renders, 268pt portrait height, no crash. Pass/Fail: ___
-1.4 Full Access toggle. Steps: Settings > dict8 > Allow Full Access on. Expected: toggle flips, no crash; off-state shows "Enable Allow Full Access". Pass/Fail: ___
+## 3. Suggestions and autocorrect
+3.1 Type "teh" + space → "The". The pending correction is the brighter middle suggestion.
+3.2 Backspace straight after → "Teh" comes back and the bar says it was kept. Typing "teh" again is left alone.
+3.3 "helo" → "hello"; "dont" → "don't".
+3.4 Type "good" + space → the bar offers "morning", "night", "luck".
+3.5 An unknown word typed twice and kept is no longer corrected and is suggested. *device*
+3.6 A text replacement from iOS Settings expands on space. A contact's name is not corrected. *device*
+3.7 After a day of typing, edge taps resolve to the intended key. "Reset learned typing" in the app clears it. *device*
+3.8 No autocorrect in a web address or email field. *device*
 
-## 2. Layout switching (gear panel)
-2.1 Open gear panel. Steps: tap gear icon top-right. Expected: panel overlays keyboard with Layout segmented control (QWERTY/QWERTZ/Turkish), Haptics/Key sounds/Auto-capitalize switches, Appearance control, Done. Pass/Fail: ___
-2.2 Switch QWERTY -> QWERTZ. Steps: segmented control middle. Expected: row2 has Y/Z swapped (QWERTZ), shift title retained. Pass/Fail: ___
-2.3 Switch to Turkish. Expected: rows show Turkish layout (ı, ş, ğ, ü, ö, ç present). Pass/Fail: ___
-2.4 Switch back to QWERTY. Expected: original layout restored. Pass/Fail: ___
-2.5 Persistence. Steps: dismiss keyboard, reopen. Expected: last chosen layout retained (KeyboardPreferences). Pass/Fail: ___
+## 4. Dictation — all *device*
+4.1 Tap the voice button: level meter and timer show, text appears as you speak, tap again to stop.
+4.2 Several sentences with pauses: every sentence is kept.
+4.3 Dictate for more than a minute without stopping: nothing is lost at the hand-over.
+4.4 Say "um" and repeat a word: both are gone after you stop.
+4.5 "new line", "new paragraph", "scratch that" act as commands (English).
+4.6 A name listed under "Names and terms" is recognised.
+4.7 Dictation language set to something other than the layout is used.
+4.8 "Dictate on device only" on, airplane mode: still works.
+4.9 Airplane mode with the switch off: falls back to on-device once and says so.
 
-## 3. Shift
-3.1 Shift once. Steps: tap ⇧, tap a letter. Expected: letter uppercase, ⇧ returns to lowercase state. Pass/Fail: ___
-3.2 Caps lock. Steps: double-tap ⇧ (off->once->caps). Expected: ⇧ shows ⇪, all letters uppercase until tapped again. Pass/Fail: ___
-3.3 Auto-capitalize. Steps: with Auto-capitalize on, type ". " then a letter. Expected: next letter auto-capitalized. Pass/Fail: ___
+## 5. Pills
+5.1 Fix spelling corrects misspelt words before the cursor.
+5.2 Paste inserts the clipboard. *device*
+5.3 Emoji search finds emoji by name; the emoji key opens the picker with recents.
+5.4 Polish rewrites the text; holding the pill offers shorter / more formal / friendlier. Needs Apple Intelligence. *device*
 
-## 4. Backspace
-4.1 Single delete. Steps: type "abc", tap ⌫ once. Expected: "ab". Pass/Fail: ___
-4.2 Auto-repeat. Steps: hold ⌫. Expected: deletes continuously until release (KNOWN BUG: repeatAction nil). Pass/Fail: ___
-
-## 5. Return key labels
-5.1 Messages compose: label "send"/"return". Notes: "return". Safari address bar: "go"/"search". Expected: matches textDocumentProxy.returnKeyType. Pass/Fail: ___
-
-## 6. ?123 and #+= pages
-6.1 Tap "123". Expected: number row 1-0, second row symbols, third row "#+=" etc. Pass/Fail: ___
-6.2 Tap "#+=". Expected: symbols page. Pass/Fail: ___
-6.3 Tap "ABC". Expected: letters page restored, current layout. Pass/Fail: ___
-
-## 7. Accent long-press
-7.1 Long-press 'a' (QWERTY). Expected popup with ä (and related). Insert ä. Pass/Fail: ___
-7.2 Long-press o/u/s. Expected: ö, ü, ß. Pass/Fail: ___
-7.3 Turkish accents. Steps: switch to Turkish, long-press g/u/s/i/o/c. Expected: ğ ü ş ı ö ç. Pass/Fail: ___
-7.4 Shift + accent. Steps: shift once, long-press base, pick accent. Expected: uppercase accent (KNOWN BUG: accentMenu only caps on .caps). Pass/Fail: ___
-
-## 8. Haptics & sounds
-8.1 Haptics on. Steps: toggle on, type. Expected: light impact per key. Pass/Fail: ___
-8.2 Haptics off. Expected: no haptic. Pass/Fail: ___
-8.3 Key sounds on/off. Expected: AudioServicesPlaySystemSound 1104 when on. Pass/Fail: ___
-
-## 9. Appearance
-9.1 Light. Steps: gear > Appearance > Light. Expected: light keyboard, persists. Pass/Fail: ___
-9.2 Dark. Expected: dark keyboard. Pass/Fail: ___
-9.3 System. Steps: set System, toggle device dark mode. Expected: keyboard follows (traitCollectionDidChange). Pass/Fail: ___
-
-## 10. Landscape
-10.1 Rotate to landscape. Expected: height 210pt, no clipping, rows fit. Pass/Fail: ___
-10.2 Rotate back to portrait. Expected: 268pt restored. Pass/Fail: ___
-
-## 11. Dictation
-11.1 Permission prompts. Steps: tap 🎤 with no mic/speech permission. Expected: status "Grant microphone access..." / "Grant speech recognition..."; no crash. (Permissions granted in containing app first.) Pass/Fail: ___
-11.2 Grant in containing app. Steps: open dict8 app, grant Microphone + Speech Recognition. Expected: toggles/permissions set. Pass/Fail: ___
-11.3 Partial text. Steps: tap 🎤, speak a sentence. Expected: status "Listening Xs", partial transcription inserts into field and updates in place. Pass/Fail: ___
-11.4 Stop. Steps: tap 🎤 again (or stop). Expected: capture stops, status "Inserted"/"Done", mic icon not recording. (KNOWN BUG: may keep recording after final.) Pass/Fail: ___
-11.5 Insertion targets. Steps: dictation in Messages, Notes, Safari. Expected: text lands in each field. Pass/Fail: ___
-11.6 Full Access off. Steps: disable Allow Full Access, tap 🎤. Expected: status "Enable Allow Full Access for this keyboard.", no capture. Pass/Fail: ___
-11.7 Offline recognition. Steps: airplane mode, dictate. Expected: if requiresOnDeviceRecognition set, works offline; otherwise status error. (Security: default may use network.) Pass/Fail: ___
-
-## 12. 7-day free-profile expiry
-12.1 Record install date. Expected: expiry = install + 7 days. Pass/Fail: ___
-12.2 After expiry: app/keyboard fail to launch or show provisioning error. Steps: advance date (cannot easily; note date). Expected: documented. Pass/Fail: N/A until date.
-
-## What cannot be checked without the phone
-- All items above require device install (blocked by free-profile 3-app limit).
-- Haptics, sounds, landscape transition, dictation audio capture, mic/speech permission prompts, Full Access behavior, 7-day expiry.
-- Simulator cannot validate: provisioning/expiry, real permission dialogs, haptics, audio route, WKWebView getUserMedia on device.
-- Cannot verify network traffic / on-device recognition without packet capture and device logs.
-
-## Evidence
-Attach screenshots per item with attach_files_to_response. Mark final verdict: PASS / FAIL / BLOCKED.
+## 6. Appearance
+6.1 Dark and light follow the system. *device for light*

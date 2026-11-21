@@ -15,7 +15,7 @@ Drag `docs/dict8-keyboard.figma.svg` into a Figma page. It lands as vector layer
 | Keys | three letter rows and the bottom row: `123`, emoji, space, return |
 | System strip | globe and system dictation, drawn by iOS |
 
-While dictating, the suggestions are replaced by a live level meter and a timer, and the voice button turns into a red stop button. Status messages and the emoji search query use the same middle section.
+The middle suggestion is drawn brighter and in medium weight when it is the word autocorrect will apply. While dictating, the suggestions are replaced by a live level meter and a timer, and the voice button turns into a red stop button. Status messages and the emoji search query use the same middle section.
 
 ## Tokens
 
@@ -48,6 +48,7 @@ Light or dark follows the system and the host app's keyboard appearance. There i
 | Return | 2.75 × key width |
 | Letter label | 23 pt regular; `123`, `ABC`, `#+=` 16 pt |
 | Touch targets | each key reaches halfway into the gaps around it |
+| Key pop-up | 54 pt tall, key width + 14 pt (46 pt minimum), 32 pt letter, radius 9, above the pressed key |
 
 Landscape drops the pill row and uses a 40 pt top bar and 40 pt row pitch (206 pt in total).
 

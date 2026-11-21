@@ -19,7 +19,7 @@ shared_group = project.main_group.new_group('Shared', 'Shared')
 
 app_files = %w[VoiceKeyboardApp.swift RootView.swift].map { |f| app_group.new_file(f) }
 app_group.new_file('Info.plist')
-kb_files = %w[KeyboardViewController.swift KeyButton.swift KeyRowView.swift WebAudioCapture.swift KeyboardTheme.swift TopBarView.swift ActionPillRow.swift EmojiCatalog.swift EmojiPanelView.swift SuggestionEngine.swift TextPolisher.swift PersonalModel.swift Autocorrector.swift].map { |f| kb_group.new_file(f) }
+kb_files = %w[KeyboardViewController.swift KeyButton.swift KeyRowView.swift WebAudioCapture.swift KeyboardTheme.swift TopBarView.swift ActionPillRow.swift EmojiCatalog.swift EmojiPanelView.swift SuggestionEngine.swift TextPolisher.swift PersonalModel.swift Autocorrector.swift DictationFormatter.swift].map { |f| kb_group.new_file(f) }
 kb_group.new_file('Info.plist')
 shared_files = %w[KeyboardPreferences.swift KeyboardLayoutDefinition.swift].map { |f| shared_group.new_file(f) }
 
@@ -45,8 +45,8 @@ def configure(target, bundle_id, plist, entitlements)
     s['TARGETED_DEVICE_FAMILY'] = '1'
     s['GENERATE_INFOPLIST_FILE'] = 'NO'
     s['CODE_SIGN_ENTITLEMENTS'] = entitlements if entitlements
-    s['CURRENT_PROJECT_VERSION'] = '1'
-    s['MARKETING_VERSION'] = '2.0'
+    s['CURRENT_PROJECT_VERSION'] = '2'
+    s['MARKETING_VERSION'] = '2.1'
     s['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
   end
 end

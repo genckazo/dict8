@@ -16,6 +16,8 @@ final class KeyButton: UIButton {
     /// Called repeatedly while the key is held. The argument counts repeats so far.
     var repeatAction: ((Int) -> Void)?
     var onTap: ((KeyButton) -> Void)?
+    /// Called with true when the key goes down and false when it is let go.
+    var onPress: ((KeyButton, Bool) -> Void)?
     /// How far the touch target reaches past the drawn key, so the gaps between
     /// keys still register on the nearest one.
     var touchOutsets: UIEdgeInsets = .zero
@@ -90,6 +92,7 @@ final class KeyButton: UIButton {
     @objc private func pressDown() {
         pressUp()
         didRepeat = false
+        onPress?(self, true)
         guard repeatAction != nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -106,6 +109,7 @@ final class KeyButton: UIButton {
     }
 
     @objc private func pressUp() {
+        onPress?(self, false)
         repeatDelay?.cancel()
         repeatDelay = nil
         repeatTimer?.invalidate()
