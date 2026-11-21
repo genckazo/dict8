@@ -19,6 +19,8 @@ final class KeyButton: UIButton {
     /// How far the touch target reaches past the drawn key, so the gaps between
     /// keys still register on the nearest one.
     var touchOutsets: UIEdgeInsets = .zero
+    /// Where the last touch came down, in this key's own coordinates.
+    private(set) var lastTouchPoint: CGPoint?
     var theme: KeyboardTheme = .dark {
         didSet { applyColors() }
     }
@@ -52,6 +54,11 @@ final class KeyButton: UIButton {
     deinit {
         repeatDelay?.cancel()
         repeatTimer?.invalidate()
+    }
+
+    override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+        lastTouchPoint = touch.location(in: self)
+        return super.beginTracking(touch, with: event)
     }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {

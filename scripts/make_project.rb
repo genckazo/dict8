@@ -19,7 +19,7 @@ shared_group = project.main_group.new_group('Shared', 'Shared')
 
 app_files = %w[VoiceKeyboardApp.swift RootView.swift].map { |f| app_group.new_file(f) }
 app_group.new_file('Info.plist')
-kb_files = %w[KeyboardViewController.swift KeyButton.swift KeyRowView.swift WebAudioCapture.swift KeyboardTheme.swift TopBarView.swift ActionPillRow.swift EmojiCatalog.swift EmojiPanelView.swift SuggestionEngine.swift TextPolisher.swift].map { |f| kb_group.new_file(f) }
+kb_files = %w[KeyboardViewController.swift KeyButton.swift KeyRowView.swift WebAudioCapture.swift KeyboardTheme.swift TopBarView.swift ActionPillRow.swift EmojiCatalog.swift EmojiPanelView.swift SuggestionEngine.swift TextPolisher.swift PersonalModel.swift Autocorrector.swift].map { |f| kb_group.new_file(f) }
 kb_group.new_file('Info.plist')
 shared_files = %w[KeyboardPreferences.swift KeyboardLayoutDefinition.swift].map { |f| shared_group.new_file(f) }
 

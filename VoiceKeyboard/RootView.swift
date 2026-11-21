@@ -31,6 +31,8 @@ struct SetupView: View {
     @State private var sounds = KeyboardPreferences.sounds
     @State private var autoCapitalize = KeyboardPreferences.autoCapitalize
     @State private var onDeviceDictation = KeyboardPreferences.onDeviceDictation
+    @State private var autoCorrect = KeyboardPreferences.autoCorrect
+    @State private var didResetLearning = false
 
     var body: some View {
         NavigationStack {
@@ -127,6 +129,13 @@ struct SetupView: View {
                 .onChange(of: sounds) { _, newValue in KeyboardPreferences.sounds = newValue }
             Toggle("Auto-capitalise", isOn: $autoCapitalize)
                 .onChange(of: autoCapitalize) { _, newValue in KeyboardPreferences.autoCapitalize = newValue }
+            Toggle("Auto-correct", isOn: $autoCorrect)
+                .onChange(of: autoCorrect) { _, newValue in KeyboardPreferences.autoCorrect = newValue }
+            Button(didResetLearning ? "Learned typing cleared" : "Reset learned typing", role: .destructive) {
+                KeyboardPreferences.personalModel = nil
+                didResetLearning = true
+            }
+            .disabled(didResetLearning)
             Toggle("Dictate on device only (slower)", isOn: $onDeviceDictation)
                 .onChange(of: onDeviceDictation) { _, newValue in KeyboardPreferences.onDeviceDictation = newValue }
         }

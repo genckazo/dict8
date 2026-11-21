@@ -27,6 +27,14 @@ final class KeyboardViewController: UIInputViewController {
     private let impact = UIImpactFeedbackGenerator(style: .light)
 
     private let engine = SuggestionEngine()
+    private let personal = PersonalModel()
+    /// The letters of the word being typed, with where each tap landed.
+    private var typedLetters: [TypedLetter] = []
+    /// The latest finished analysis; only used if it is for the word under the cursor.
+    private var analysis: SuggestionEngine.WordAnalysis?
+    /// The last automatic correction, so one backspace can take it back.
+    private var lastAutocorrect: (typed: String, corrected: String, trailer: String)?
+    private var cachedGeometry: KeyGeometry?
     /// Dictionary lookups take tens of milliseconds, so they never run on the main thread.
     private let suggestionQueue = DispatchQueue(label: "com.kazo.voicekeyboard.suggestions", qos: .userInitiated)
     private var suggestionWork: DispatchWorkItem?
@@ -89,6 +97,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         loadPreferences()
+        personal.reload()
         showsEmoji = false
         searchQuery = nil
         topBar.setSearch(nil)
@@ -105,6 +114,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         polishTask?.cancel()
+        personal.save()
         if capture.isCapturing { stopDictation() }
     }
 
@@ -206,6 +216,7 @@ final class KeyboardViewController: UIInputViewController {
         let panelTop = metrics.showsPills ? metrics.pillY : metrics.keysY
         emojiPanel.frame = CGRect(x: 0, y: panelTop, width: width, height: max(view.bounds.height - panelTop, 0))
         settingsPanel.frame = view.bounds
+        cachedGeometry = nil
         updateVisibility()
     }
 
@@ -248,6 +259,7 @@ final class KeyboardViewController: UIInputViewController {
 
         builtLayout = layoutID
         shownReturnLabel = nil
+        cachedGeometry = nil
         applyTheme()
         applyShiftAppearance()
         updateReturnKey()
@@ -387,11 +399,52 @@ final class KeyboardViewController: UIInputViewController {
             page = .letters
             buildKeys()
         default:
-            insertCharacter(key.keyValue)
+            let point = key.lastTouchPoint.map { key.convert($0, to: view) }
+            insertCharacter(resolvedValue(for: key, at: point), tap: point)
         }
     }
 
-    private func insertCharacter(_ text: String) {
+    /// The letter a tap most likely meant. Once the keyboard has learned where this
+    /// person's taps land for a key, a tap near the edge goes to the key they were aiming at.
+    private func resolvedValue(for key: KeyButton, at point: CGPoint?) -> String {
+        guard page == .letters, key.style == .character, let point, let row = key.superview as? KeyRowView,
+              let index = row.keys.firstIndex(of: key) else { return key.keyValue }
+        var best = key
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+        for candidate in row.keys[max(index - 1, 0)...min(index + 1, row.keys.count - 1)]
+        where candidate.style == .character {
+            guard let letter = candidate.keyValue.first else { continue }
+            let offset = personal.data.offset(for: letter)
+            let centre = candidate.convert(CGPoint(x: candidate.bounds.midX, y: candidate.bounds.midY), to: view)
+            let dx = point.x - centre.x - offset.x * (candidate.bounds.width + row.spacing)
+            let dy = point.y - centre.y - offset.y * row.bounds.height
+            let distance = dx * dx + dy * dy
+            if distance < bestDistance {
+                bestDistance = distance
+                best = candidate
+            }
+        }
+        return best.keyValue
+    }
+
+    /// Key centres for the letters page, used to judge how likely a slip was.
+    private func keyGeometry() -> KeyGeometry {
+        if let cachedGeometry { return cachedGeometry }
+        var geometry = KeyGeometry()
+        geometry.keyHeight = metrics.rowPitch
+        guard page == .letters else { return geometry }
+        for row in rows.prefix(3) {
+            for key in row.keys where key.style == .character {
+                guard let letter = key.keyValue.first, key.keyValue.count == 1 else { continue }
+                geometry.centers[letter] = key.convert(CGPoint(x: key.bounds.midX, y: key.bounds.midY), to: view)
+                geometry.keyWidth = key.bounds.width + row.spacing
+            }
+        }
+        if !geometry.centers.isEmpty, geometry.keyWidth > 10 { cachedGeometry = geometry }
+        return geometry
+    }
+
+    private func insertCharacter(_ text: String, tap: CGPoint? = nil) {
         var output = text
         if page == .letters, shift != .off {
             output = text.uppercased(with: Locale(identifier: definition.localeIdentifier))
@@ -400,6 +453,13 @@ final class KeyboardViewController: UIInputViewController {
             searchQuery = query + output.lowercased()
             if shift == .once { setShift(.off) }
             return updateSearch()
+        }
+        lastAutocorrect = nil
+        if output.count == 1, let character = output.first, character.isLetter || character == "'" {
+            typedLetters.append(TypedLetter(character: character, point: tap))
+        } else {
+            // Punctuation finishes the word just like a space does.
+            finishWord(trailer: output)
         }
         // "word " + "." reads better as "word." when the space came from a suggestion.
         if pendingAutoSpace, output.count == 1, ".,?!:;".contains(output),
@@ -421,6 +481,8 @@ final class KeyboardViewController: UIInputViewController {
             searchQuery = query + " "
             return updateSearch()
         }
+        lastAutocorrect = nil
+        finishWord(trailer: " ")
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         let previous = before.dropLast().last
         if before.hasSuffix(" "), let previous, previous.isLetter || previous.isNumber {
@@ -442,12 +504,127 @@ final class KeyboardViewController: UIInputViewController {
             return updateSearch()
         }
         pendingAutoSpace = false
+        // Straight after an autocorrection, backspace puts back what was typed and
+        // remembers not to change that word again.
+        if let last = lastAutocorrect {
+            lastAutocorrect = nil
+            let applied = last.corrected + last.trailer
+            if (textDocumentProxy.documentContextBeforeInput ?? "").hasSuffix(applied) {
+                for _ in applied { textDocumentProxy.deleteBackward() }
+                textDocumentProxy.insertText(last.typed + last.trailer)
+                personal.update { $0.keep(last.typed) }
+                typedLetters = []
+                topBar.flashStatus("Kept “\(last.typed)”", seconds: 1.5)
+                return afterTextChange()
+            }
+        }
+        if !typedLetters.isEmpty { typedLetters.removeLast() }
         textDocumentProxy.deleteBackward()
         afterTextChange()
     }
 
+    // MARK: - Autocorrect
+
+    /// Autocorrect and learning stay out of fields that ask for neither, such as web addresses.
+    private var fieldAllowsCorrection: Bool {
+        if textDocumentProxy.autocorrectionType == .no { return false }
+        switch textDocumentProxy.keyboardType ?? .default {
+        case .URL, .emailAddress, .numberPad, .phonePad, .decimalPad, .numbersAndPunctuation, .webSearch:
+            return false
+        default:
+            return true
+        }
+    }
+
+    /// The tap record for `word`, or plain letters if it was not typed key by key.
+    private func letters(for word: String) -> [TypedLetter] {
+        String(typedLetters.map(\.character)) == word
+            ? typedLetters : word.map { TypedLetter(character: $0, point: nil) }
+    }
+
+    /// Called when a space or punctuation ends a word, before that character is typed.
+    private func finishWord(trailer: String) {
+        defer { typedLetters = [] }
+        let context = textDocumentProxy.documentContextBeforeInput ?? ""
+        let word = SuggestionEngine.partialWord(in: context)
+        guard !word.isEmpty, fieldAllowsCorrection else { return }
+        let typed = letters(for: word)
+        if let analysis, analysis.word == word {
+            settle(analysis, letters: typed, trailer: trailer, afterTheFact: false)
+            return
+        }
+        // Typed faster than the lookup: finish it in the background and fix the word up after.
+        let lookup = makeAnalysis(context: String(context.suffix(48)), letters: typed)
+        suggestionQueue.async { [weak self] in
+            let result = lookup()
+            DispatchQueue.main.async { self?.settle(result, letters: typed, trailer: trailer, afterTheFact: true) }
+        }
+    }
+
+    /// Applies the correction for a finished word, or learns the word if it stands.
+    private func settle(
+        _ result: SuggestionEngine.WordAnalysis, letters: [TypedLetter], trailer: String, afterTheFact: Bool
+    ) {
+        let geometry = keyGeometry()
+        guard let correction = result.correction, KeyboardPreferences.autoCorrect else {
+            personal.update { model in
+                model.noteWord(result.word, knownToDictionary: result.known)
+                if result.known { Self.learnTaps(letters, meant: result.word, geometry: geometry, into: &model) }
+            }
+            return
+        }
+        if afterTheFact {
+            // Only if nothing else has been typed since.
+            let typed = result.word + trailer
+            guard (textDocumentProxy.documentContextBeforeInput ?? "").hasSuffix(typed) else { return }
+            for _ in typed { textDocumentProxy.deleteBackward() }
+            textDocumentProxy.insertText(correction + trailer)
+        } else {
+            for _ in result.word { textDocumentProxy.deleteBackward() }
+            textDocumentProxy.insertText(correction)
+        }
+        lastAutocorrect = (result.word, correction, trailer)
+        personal.update { model in
+            model.noteWord(correction, knownToDictionary: true)
+            Self.learnTaps(letters, meant: correction, geometry: geometry, into: &model)
+        }
+    }
+
+    /// Records where each tap landed relative to the key it turned out to be meant for.
+    private static func learnTaps(
+        _ letters: [TypedLetter], meant word: String, geometry: KeyGeometry, into model: inout PersonalModelData
+    ) {
+        let meant = Array(word.lowercased())
+        guard meant.count == letters.count, geometry.keyWidth > 0, geometry.keyHeight > 0 else { return }
+        for (letter, target) in zip(letters, meant) {
+            guard let point = letter.point, let centre = geometry.centers[target] else { continue }
+            model.noteTap(
+                for: target,
+                dx: Double((point.x - centre.x) / geometry.keyWidth),
+                dy: Double((point.y - centre.y) / geometry.keyHeight)
+            )
+        }
+    }
+
+    /// Packages a lookup with copies of everything it needs, to run off the main thread.
+    private func makeAnalysis(context: String, letters: [TypedLetter]) -> () -> SuggestionEngine.WordAnalysis {
+        let engine = engine
+        let locale = definition.localeIdentifier
+        let geometry = keyGeometry()
+        let model = personal.data
+        let autocorrect = KeyboardPreferences.autoCorrect && fieldAllowsCorrection
+        return {
+            engine.analyse(
+                context: context, letters: letters, locale: locale, geometry: geometry,
+                model: model, autocorrect: autocorrect
+            )
+        }
+    }
+
     private func deleteWord() {
         guard searchQuery == nil else { return deleteOne() }
+        typedLetters = []
+        lastAutocorrect = nil
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         var count = 0
         var seenWord = false
@@ -571,14 +748,15 @@ final class KeyboardViewController: UIInputViewController {
         suggestionKey = key
 
         suggestionWork?.cancel()
-        let engine = engine
+        let lookup = makeAnalysis(context: context, letters: letters(for: SuggestionEngine.partialWord(in: context)))
         var work: DispatchWorkItem!
         work = DispatchWorkItem { [weak self] in
-            let words = engine.suggestions(for: context, locale: locale)
+            let result = lookup()
             DispatchQueue.main.async {
                 guard let self, self.suggestionKey == key else { return }
-                self.currentSuggestions = words
-                self.topBar.setSuggestions(words)
+                self.analysis = result
+                self.currentSuggestions = result.suggestions
+                self.topBar.setSuggestions(result.suggestions, emphasised: result.correction == nil ? nil : 1)
             }
         }
         suggestionWork = work
@@ -588,9 +766,15 @@ final class KeyboardViewController: UIInputViewController {
     private func acceptSuggestion(at index: Int) {
         guard index < currentSuggestions.count else { return }
         feedback()
-        // The first slot quotes the word exactly as typed.
+        // The first slot quotes the word exactly as typed; choosing it means "leave this alone".
+        let asTyped = currentSuggestions[index].hasPrefix("“")
         let word = currentSuggestions[index].trimmingCharacters(in: CharacterSet(charactersIn: "“”"))
         let context = textDocumentProxy.documentContextBeforeInput ?? ""
+        if fieldAllowsCorrection {
+            personal.update { asTyped ? $0.keep(word) : $0.noteWord(word, knownToDictionary: true) }
+        }
+        typedLetters = []
+        lastAutocorrect = nil
         for _ in SuggestionEngine.partialWord(in: context) { textDocumentProxy.deleteBackward() }
         textDocumentProxy.insertText(word + " ")
         pendingAutoSpace = true
@@ -766,6 +950,9 @@ final class KeyboardViewController: UIInputViewController {
         let autoCap = UISwitch()
         autoCap.isOn = KeyboardPreferences.autoCapitalize
         autoCap.addTarget(self, action: #selector(toggleAutoCap(_:)), for: .valueChanged)
+        let autoCorrect = UISwitch()
+        autoCorrect.isOn = KeyboardPreferences.autoCorrect
+        autoCorrect.addTarget(self, action: #selector(toggleAutoCorrect(_:)), for: .valueChanged)
         let onDevice = UISwitch()
         onDevice.isOn = KeyboardPreferences.onDeviceDictation
         onDevice.addTarget(self, action: #selector(toggleOnDevice(_:)), for: .valueChanged)
@@ -776,6 +963,7 @@ final class KeyboardViewController: UIInputViewController {
             makeSettingRow("Haptics", haptics),
             makeSettingRow("Key sounds", sounds),
             makeSettingRow("Auto-capitalise", autoCap),
+            makeSettingRow("Auto-correct", autoCorrect),
             makeSettingRow("Dictate on device only (slower)", onDevice)
         ])
         stack.axis = .vertical
@@ -821,6 +1009,12 @@ final class KeyboardViewController: UIInputViewController {
     @objc private func toggleHaptics(_ sender: UISwitch) { KeyboardPreferences.haptics = sender.isOn }
     @objc private func toggleSounds(_ sender: UISwitch) { KeyboardPreferences.sounds = sender.isOn }
     @objc private func toggleAutoCap(_ sender: UISwitch) { KeyboardPreferences.autoCapitalize = sender.isOn }
+    @objc private func toggleAutoCorrect(_ sender: UISwitch) {
+        KeyboardPreferences.autoCorrect = sender.isOn
+        suggestionKey = nil
+        refreshSuggestions()
+    }
+
     @objc private func toggleOnDevice(_ sender: UISwitch) { KeyboardPreferences.onDeviceDictation = sender.isOn }
 
     // MARK: - Dictation

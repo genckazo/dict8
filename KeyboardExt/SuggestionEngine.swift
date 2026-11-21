@@ -24,30 +24,88 @@ final class SuggestionEngine {
         return ".?!\n".contains(last)
     }
 
-    func suggestions(for context: String, locale: String) -> [String] {
-        let partial = Self.partialWord(in: context)
-        guard !partial.isEmpty else { return starters(locale: locale, sentenceStart: Self.isSentenceStart(context)) }
+    /// Everything worked out about the word being typed.
+    struct WordAnalysis {
+        let word: String
+        let suggestions: [String]
+        /// The word autocorrect would type instead, if it is confident enough.
+        let correction: String?
+        /// True when the dictionary or the person's own vocabulary has the word.
+        let known: Bool
+    }
 
+    /// Suggestions plus the autocorrect decision for the word at the end of `context`.
+    /// Runs on the suggestion queue; `model` and `geometry` are copies.
+    func analyse(
+        context: String, letters: [TypedLetter], locale: String, geometry: KeyGeometry,
+        model: PersonalModelData, autocorrect: Bool
+    ) -> WordAnalysis {
+        let partial = Self.partialWord(in: context)
+        guard !partial.isEmpty else {
+            let words = starters(locale: locale, sentenceStart: Self.isSentenceStart(context))
+            return WordAnalysis(word: "", suggestions: words, correction: nil, known: true)
+        }
         let language = Self.language(for: locale)
         let range = NSRange(location: 0, length: (partial as NSString).length)
-        var candidates: [String] = []
         let misspelled = checker.rangeOfMisspelledWord(
             in: partial, range: range, startingAt: 0, wrap: false, language: language
         ).location != NSNotFound
-        if misspelled {
-            candidates += checker.guesses(forWordRange: range, in: partial, language: language) ?? []
+        let known = !misspelled || model.knows(partial)
+        let guesses = known ? [] : (checker.guesses(forWordRange: range, in: partial, language: language) ?? [])
+
+        var correction: String?
+        let lowered = partial.lowercased()
+        if autocorrect, language.hasPrefix("en"), partial == "i", !model.isRejected(partial) {
+            correction = "I"
+        } else if autocorrect, !known, !model.isRejected(partial), !looksLikeName(partial, in: context) {
+            let typed = String(letters.map(\.character)) == partial
+                ? letters : partial.map { TypedLetter(character: $0, point: nil) }
+            let nearby = neighbourWords(for: Array(lowered), geometry: geometry, model: model, language: language)
+            correction = Autocorrector.correction(
+                for: typed, candidates: Array(guesses.prefix(8)) + nearby, geometry: geometry, model: model
+            )
         }
-        candidates += checker.completions(forPartialWordRange: range, in: partial, language: language) ?? []
 
         let capitalised = partial.first?.isUppercase == true
         var result = ["“\(partial)”"]
-        var seen: Set<String> = [partial.lowercased()]
-        for candidate in candidates {
+        var seen: Set<String> = [lowered]
+        let ordered = [correction].compactMap { $0 }
+            + model.completions(for: partial, limit: 2)
+            + guesses
+            + (checker.completions(forPartialWordRange: range, in: partial, language: language) ?? [])
+        for candidate in ordered {
             guard seen.insert(candidate.lowercased()).inserted else { continue }
             result.append(capitalised ? candidate.prefix(1).uppercased() + candidate.dropFirst() : candidate)
             if result.count == 3 { break }
         }
-        return result
+        return WordAnalysis(word: partial, suggestions: result, correction: correction, known: known)
+    }
+
+    /// A capitalised unknown word in the middle of a sentence is most likely a name.
+    private func looksLikeName(_ word: String, in context: String) -> Bool {
+        guard word.first?.isUppercase == true else { return false }
+        return !Self.isSentenceStart(String(context.dropLast(word.count)))
+    }
+
+    /// Real words one neighbouring key away from what was typed.
+    private func neighbourWords(
+        for letters: [Character], geometry: KeyGeometry, model: PersonalModelData, language: String
+    ) -> [String] {
+        guard letters.count >= 2, letters.count <= 12 else { return [] }
+        var found: [String] = []
+        for index in letters.indices {
+            for neighbour in geometry.neighbours(of: letters[index]) {
+                var changed = letters
+                changed[index] = neighbour
+                let word = String(changed)
+                let range = NSRange(location: 0, length: (word as NSString).length)
+                let real = model.knows(word) || checker.rangeOfMisspelledWord(
+                    in: word, range: range, startingAt: 0, wrap: false, language: language
+                ).location == NSNotFound
+                if real { found.append(word) }
+            }
+        }
+        return found
     }
 
     /// Replaces misspelled words with the dictionary's first guess and tidies
