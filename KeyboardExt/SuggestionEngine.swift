@@ -18,6 +18,14 @@ final class SuggestionEngine {
         return String(letters.reversed())
     }
 
+    /// The word before the one being typed, if it is in the same sentence.
+    static func previousWord(before partial: String, in context: String) -> String? {
+        var rest = Substring(context).dropLast(partial.count)
+        while rest.last == " " { rest = rest.dropLast() }
+        let word = partialWord(in: String(rest))
+        return word.isEmpty ? nil : word
+    }
+
     static func isSentenceStart(_ context: String) -> Bool {
         let trimmed = context.trimmingCharacters(in: .whitespaces)
         guard let last = trimmed.last else { return true }
@@ -38,24 +46,31 @@ final class SuggestionEngine {
     /// Runs on the suggestion queue; `model` and `geometry` are copies.
     func analyse(
         context: String, letters: [TypedLetter], locale: String, geometry: KeyGeometry,
-        model: PersonalModelData, autocorrect: Bool
+        model: PersonalModelData, autocorrect: Bool, shortcuts: [String: String], names: Set<String>
     ) -> WordAnalysis {
         let partial = Self.partialWord(in: context)
+        let previous = Self.previousWord(before: partial, in: context)
         guard !partial.isEmpty else {
-            let words = starters(locale: locale, sentenceStart: Self.isSentenceStart(context))
-            return WordAnalysis(word: "", suggestions: words, correction: nil, known: true)
+            return WordAnalysis(
+                word: "", suggestions: nextWords(after: previous, context: context, locale: locale, model: model),
+                correction: nil, known: true
+            )
         }
         let language = Self.language(for: locale)
         let range = NSRange(location: 0, length: (partial as NSString).length)
         let misspelled = checker.rangeOfMisspelledWord(
             in: partial, range: range, startingAt: 0, wrap: false, language: language
         ).location != NSNotFound
-        let known = !misspelled || model.knows(partial)
+        let lowered = partial.lowercased()
+        // A text replacement set up in iOS Settings ("omw" → "On my way!") expands like a correction.
+        let expansion = autocorrect ? shortcuts[lowered] : nil
+        let known = !misspelled || model.knows(partial) || names.contains(lowered) || expansion != nil
         let guesses = known ? [] : (checker.guesses(forWordRange: range, in: partial, language: language) ?? [])
 
-        var correction: String?
-        let lowered = partial.lowercased()
-        if autocorrect, language.hasPrefix("en"), partial == "i", !model.isRejected(partial) {
+        var correction: String? = expansion
+        if expansion != nil {
+            // Nothing else to decide.
+        } else if autocorrect, language.hasPrefix("en"), partial == "i", !model.isRejected(partial) {
             correction = "I"
         } else if autocorrect, !known, !model.isRejected(partial), !looksLikeName(partial, in: context) {
             let typed = String(letters.map(\.character)) == partial
@@ -69,10 +84,18 @@ final class SuggestionEngine {
         let capitalised = partial.first?.isUppercase == true
         var result = ["“\(partial)”"]
         var seen: Set<String> = [lowered]
-        let ordered = [correction].compactMap { $0 }
-            + model.completions(for: partial, limit: 2)
+        var others = model.completions(for: partial, limit: 2)
             + guesses
             + (checker.completions(forPartialWordRange: range, in: partial, language: language) ?? [])
+        if let previous {
+            // Words this person has typed after the previous one come first; the rest keep their order.
+            let ranked = others.enumerated().sorted {
+                let a = model.pairCount(previous, $0.element), b = model.pairCount(previous, $1.element)
+                return a != b ? a > b : $0.offset < $1.offset
+            }
+            others = ranked.map(\.element)
+        }
+        let ordered = [correction].compactMap { $0 } + others
         for candidate in ordered {
             guard seen.insert(candidate.lowercased()).inserted else { continue }
             result.append(capitalised ? candidate.prefix(1).uppercased() + candidate.dropFirst() : candidate)
@@ -80,6 +103,45 @@ final class SuggestionEngine {
         }
         return WordAnalysis(word: partial, suggestions: result, correction: correction, known: known)
     }
+
+    /// What to offer before a word is started: what this person usually types next,
+    /// then common followers, then everyday words.
+    private func nextWords(after previous: String?, context: String, locale: String, model: PersonalModelData) -> [String] {
+        let sentenceStart = Self.isSentenceStart(context)
+        var words: [String] = []
+        if !sentenceStart, let previous {
+            words += model.nextWords(after: previous, limit: 3)
+            if locale.hasPrefix("en") { words += Self.commonFollowers[previous.lowercased()] ?? [] }
+        }
+        words += starters(locale: locale, sentenceStart: sentenceStart)
+        var seen = Set<String>()
+        var result: [String] = []
+        for word in words where seen.insert(word.lowercased()).inserted {
+            result.append(word == "i" ? "I" : word)
+            if result.count == 3 { break }
+        }
+        return result
+    }
+
+    /// A small table of what tends to follow the most common English words, used until
+    /// the keyboard has seen enough of this person's own typing.
+    private static let commonFollowers: [String: [String]] = [
+        "i": ["am", "have", "think"], "i'm": ["not", "going", "so"], "you": ["are", "can", "have"],
+        "we": ["are", "can", "have"], "they": ["are", "have", "were"], "he": ["is", "was", "has"],
+        "she": ["is", "was", "has"], "it": ["is", "was", "would"], "it's": ["a", "not", "the"],
+        "the": ["same", "first", "best"], "a": ["lot", "few", "good"], "an": ["hour", "idea", "email"],
+        "to": ["be", "the", "do"], "of": ["the", "a", "course"], "in": ["the", "a", "my"],
+        "on": ["the", "my", "a"], "at": ["the", "home", "work"], "for": ["the", "a", "me"],
+        "and": ["I", "the", "then"], "but": ["I", "it", "the"], "is": ["a", "the", "not"],
+        "are": ["you", "we", "not"], "was": ["a", "the", "not"], "will": ["be", "have", "not"],
+        "can": ["you", "I", "we"], "do": ["you", "not", "it"], "don't": ["know", "have", "think"],
+        "have": ["a", "to", "been"], "thank": ["you"], "thanks": ["for", "so", "again"],
+        "see": ["you", "it", "the"], "let": ["me", "us", "them"], "let's": ["go", "do", "see"],
+        "how": ["are", "is", "do"], "what": ["is", "do", "are"], "good": ["morning", "night", "luck"],
+        "this": ["is", "was", "one"], "that": ["is", "was", "the"], "my": ["name", "phone", "own"],
+        "be": ["there", "a", "able"], "not": ["sure", "a", "the"], "going": ["to", "on", "out"],
+        "want": ["to", "a", "it"], "need": ["to", "a", "it"], "with": ["the", "you", "a"]
+    ]
 
     /// A capitalised unknown word in the middle of a sentence is most likely a name.
     private func looksLikeName(_ word: String, in context: String) -> Bool {

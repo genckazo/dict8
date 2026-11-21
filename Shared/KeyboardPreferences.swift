@@ -18,7 +18,10 @@ enum KeyboardPreferences {
         static let haptics = "kb.haptics"
         static let sounds = "kb.sounds"
         static let autoCapitalize = "kb.autoCapitalize"
-        static let dictationLocale = "kb.dictationLocale"
+        static let dictationLanguage = "kb.dictationLanguage"
+        static let customVocabulary = "kb.customVocabulary"
+        static let smartDictation = "kb.smartDictation"
+        static let keyPopups = "kb.keyPopups"
         static let recentEmojis = "kb.recentEmojis"
         static let onDeviceDictation = "kb.onDeviceDictation"
         static let autoCorrect = "kb.autoCorrect"
@@ -46,9 +49,27 @@ enum KeyboardPreferences {
         set { store.set(newValue, forKey: Key.autoCapitalize) }
     }
 
-    static var dictationLocale: String {
-        get { store.string(forKey: Key.dictationLocale) ?? Locale.current.identifier }
-        set { store.set(newValue, forKey: Key.dictationLocale) }
+    /// The language to dictate in. Nil follows the keyboard layout.
+    static var dictationLanguage: String? {
+        get { store.string(forKey: Key.dictationLanguage) }
+        set { store.set(newValue, forKey: Key.dictationLanguage) }
+    }
+
+    /// Names and terms the speech recogniser should expect, one per entry.
+    static var customVocabulary: [String] {
+        get { store.stringArray(forKey: Key.customVocabulary) ?? [] }
+        set { store.set(Array(newValue.prefix(100)), forKey: Key.customVocabulary) }
+    }
+
+    /// Drop filler sounds and act on spoken commands such as "new line" when dictation ends.
+    static var smartDictation: Bool {
+        get { store.object(forKey: Key.smartDictation) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.smartDictation) }
+    }
+
+    static var keyPopups: Bool {
+        get { store.object(forKey: Key.keyPopups) as? Bool ?? true }
+        set { store.set(newValue, forKey: Key.keyPopups) }
     }
 
     /// Off by default: speech goes to Apple's servers, which is quicker and more accurate.

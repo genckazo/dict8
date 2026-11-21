@@ -35,6 +35,11 @@ final class KeyboardViewController: UIInputViewController {
     /// The last automatic correction, so one backspace can take it back.
     private var lastAutocorrect: (typed: String, corrected: String, trailer: String)?
     private var cachedGeometry: KeyGeometry?
+    /// Text replacements from iOS Settings: lowercased shortcut → what it expands to.
+    private var shortcuts: [String: String] = [:]
+    /// Contact names and other words iOS knows, which are never corrected.
+    private var lexiconWords: Set<String> = []
+    private let keyPreview = KeyPreviewView()
     /// Dictionary lookups take tens of milliseconds, so they never run on the main thread.
     private let suggestionQueue = DispatchQueue(label: "com.kazo.voicekeyboard.suggestions", qos: .userInitiated)
     private var suggestionWork: DispatchWorkItem?
@@ -72,6 +77,10 @@ final class KeyboardViewController: UIInputViewController {
     /// Earlier utterances are final: they stay in the document and are never retyped.
     private var committedUtterances = 0
     private var lastCommitted = ""
+    /// What the document actually holds for each committed utterance, newest last.
+    private var committedShown: [String] = []
+    private var dictationLanguage = "en_US"
+    private var dictationVocabulary: [String] = []
     private var levelTick = 0
     private var capturedSamples = 0
     private var speechError: String?
@@ -92,6 +101,27 @@ final class KeyboardViewController: UIInputViewController {
         configureDictation()
         buildKeys()
         refreshSuggestions()
+        loadLexicon()
+    }
+
+    /// iOS hands keyboards the person's text replacements and contact names.
+    private func loadLexicon() {
+        requestSupplementaryLexicon { [weak self] lexicon in
+            var shortcuts: [String: String] = [:]
+            var words = Set<String>()
+            for entry in lexicon.entries {
+                let typed = entry.userInput.lowercased()
+                if typed != entry.documentText.lowercased(), !typed.contains(" ") {
+                    shortcuts[typed] = entry.documentText
+                } else {
+                    entry.documentText.lowercased().split(separator: " ").forEach { words.insert(String($0)) }
+                }
+            }
+            DispatchQueue.main.async {
+                self?.shortcuts = shortcuts
+                self?.lexiconWords = words
+            }
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -175,6 +205,13 @@ final class KeyboardViewController: UIInputViewController {
         }
         topBar.onSuggestion = { [weak self] index in self?.acceptSuggestion(at: index) }
         pillRow.onAction = { [weak self] action in self?.perform(action) }
+        // Tap polishes; holding the pill offers other rewrites.
+        pillRow.setPolishMenu(UIMenu(children: TextPolisher.Style.allCases.map { style in
+            UIAction(title: style.title, image: UIImage(systemName: style.symbol)) { [weak self] _ in
+                self?.feedback()
+                self?.polish(style)
+            }
+        }))
         resultStrip.onEmoji = { [weak self] emoji in self?.insertEmoji(emoji) }
         resultStrip.onClose = { [weak self] in self?.endSearch() }
         emojiPanel.onEmoji = { [weak self] emoji in self?.insertEmoji(emoji) }
@@ -189,6 +226,9 @@ final class KeyboardViewController: UIInputViewController {
         view.addSubview(resultStrip)
         rows.forEach { view.addSubview($0) }
         view.addSubview(emojiPanel)
+
+        keyPreview.isHidden = true
+        view.addSubview(keyPreview)
 
         settingsPanel.isHidden = true
         view.addSubview(settingsPanel)
@@ -317,6 +357,7 @@ final class KeyboardViewController: UIInputViewController {
         default:
             key.style = .character
             key.setLabel(value)
+            key.onPress = { [weak self] pressed, down in self?.showPreview(for: pressed, visible: down) }
             if let accents = definition.accents[value.lowercased()], !accents.isEmpty {
                 key.menu = accentMenu(base: value, accents: accents)
                 key.showsMenuAsPrimaryAction = false
@@ -402,6 +443,21 @@ final class KeyboardViewController: UIInputViewController {
             let point = key.lastTouchPoint.map { key.convert($0, to: view) }
             insertCharacter(resolvedValue(for: key, at: point), tap: point)
         }
+    }
+
+    /// The enlarged letter that pops up over a key while it is held.
+    private func showPreview(for key: KeyButton, visible: Bool) {
+        guard visible, KeyboardPreferences.keyPopups, let title = key.title(for: .normal), !title.isEmpty else {
+            keyPreview.isHidden = true
+            return
+        }
+        let frame = key.convert(key.bounds, to: view)
+        let width = max(frame.width + 14, 46)
+        let x = min(max(frame.midX - width / 2, 2), view.bounds.width - width - 2)
+        keyPreview.frame = CGRect(x: x, y: max(frame.minY - 50, 0), width: width, height: 54)
+        keyPreview.show(title)
+        view.bringSubviewToFront(keyPreview)
+        if !settingsPanel.isHidden { view.bringSubviewToFront(settingsPanel) }
     }
 
     /// The letter a tap most likely meant. Once the keyboard has learned where this
@@ -549,26 +605,31 @@ final class KeyboardViewController: UIInputViewController {
         let word = SuggestionEngine.partialWord(in: context)
         guard !word.isEmpty, fieldAllowsCorrection else { return }
         let typed = letters(for: word)
+        let previous = SuggestionEngine.previousWord(before: word, in: context)
         if let analysis, analysis.word == word {
-            settle(analysis, letters: typed, trailer: trailer, afterTheFact: false)
+            settle(analysis, letters: typed, previous: previous, trailer: trailer, afterTheFact: false)
             return
         }
         // Typed faster than the lookup: finish it in the background and fix the word up after.
         let lookup = makeAnalysis(context: String(context.suffix(48)), letters: typed)
         suggestionQueue.async { [weak self] in
             let result = lookup()
-            DispatchQueue.main.async { self?.settle(result, letters: typed, trailer: trailer, afterTheFact: true) }
+            DispatchQueue.main.async {
+                self?.settle(result, letters: typed, previous: previous, trailer: trailer, afterTheFact: true)
+            }
         }
     }
 
     /// Applies the correction for a finished word, or learns the word if it stands.
     private func settle(
-        _ result: SuggestionEngine.WordAnalysis, letters: [TypedLetter], trailer: String, afterTheFact: Bool
+        _ result: SuggestionEngine.WordAnalysis, letters: [TypedLetter], previous: String?,
+        trailer: String, afterTheFact: Bool
     ) {
         let geometry = keyGeometry()
         guard let correction = result.correction, KeyboardPreferences.autoCorrect else {
             personal.update { model in
                 model.noteWord(result.word, knownToDictionary: result.known)
+                if let previous { model.notePair(previous, result.word) }
                 if result.known { Self.learnTaps(letters, meant: result.word, geometry: geometry, into: &model) }
             }
             return
@@ -586,6 +647,7 @@ final class KeyboardViewController: UIInputViewController {
         lastAutocorrect = (result.word, correction, trailer)
         personal.update { model in
             model.noteWord(correction, knownToDictionary: true)
+            if let previous, !correction.contains(" ") { model.notePair(previous, correction) }
             Self.learnTaps(letters, meant: correction, geometry: geometry, into: &model)
         }
     }
@@ -613,10 +675,12 @@ final class KeyboardViewController: UIInputViewController {
         let geometry = keyGeometry()
         let model = personal.data
         let autocorrect = KeyboardPreferences.autoCorrect && fieldAllowsCorrection
+        let shortcuts = shortcuts
+        let names = lexiconWords
         return {
             engine.analyse(
                 context: context, letters: letters, locale: locale, geometry: geometry,
-                model: model, autocorrect: autocorrect
+                model: model, autocorrect: autocorrect, shortcuts: shortcuts, names: names
             )
         }
     }
@@ -771,7 +835,12 @@ final class KeyboardViewController: UIInputViewController {
         let word = currentSuggestions[index].trimmingCharacters(in: CharacterSet(charactersIn: "“”"))
         let context = textDocumentProxy.documentContextBeforeInput ?? ""
         if fieldAllowsCorrection {
-            personal.update { asTyped ? $0.keep(word) : $0.noteWord(word, knownToDictionary: true) }
+            let partial = SuggestionEngine.partialWord(in: context)
+            let previous = SuggestionEngine.previousWord(before: partial, in: context)
+            personal.update { model in
+                if asTyped { model.keep(word) } else { model.noteWord(word, knownToDictionary: true) }
+                if let previous { model.notePair(previous, word) }
+            }
         }
         typedLetters = []
         lastAutocorrect = nil
@@ -790,7 +859,7 @@ final class KeyboardViewController: UIInputViewController {
         case .proofread: proofread()
         case .paste: paste()
         case .search: beginSearch()
-        case .polish: polish()
+        case .polish: polish(.polish)
         }
     }
 
@@ -813,7 +882,7 @@ final class KeyboardViewController: UIInputViewController {
         insertRaw(text)
     }
 
-    private func polish() {
+    private func polish(_ style: TextPolisher.Style) {
         let context = textDocumentProxy.documentContextBeforeInput ?? ""
         guard !context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return topBar.flashStatus("Write something to polish first")
@@ -823,7 +892,7 @@ final class KeyboardViewController: UIInputViewController {
         polishTask?.cancel()
         polishTask = Task { [weak self] in
             let outcome: Result<String, Error>
-            do { outcome = .success(try await TextPolisher.polish(context)) } catch { outcome = .failure(error) }
+            do { outcome = .success(try await TextPolisher.polish(context, style: style)) } catch { outcome = .failure(error) }
             guard let self, !Task.isCancelled else { return }
             self.pillRow.setBusy(false, action: .polish)
             switch outcome {
@@ -906,6 +975,7 @@ final class KeyboardViewController: UIInputViewController {
         pillRow.apply(theme: theme)
         resultStrip.apply(theme: theme)
         emojiPanel.apply(theme: theme)
+        keyPreview.apply(theme: theme)
         settingsPanel.backgroundColor = theme.panel
     }
 
@@ -953,6 +1023,12 @@ final class KeyboardViewController: UIInputViewController {
         let autoCorrect = UISwitch()
         autoCorrect.isOn = KeyboardPreferences.autoCorrect
         autoCorrect.addTarget(self, action: #selector(toggleAutoCorrect(_:)), for: .valueChanged)
+        let popups = UISwitch()
+        popups.isOn = KeyboardPreferences.keyPopups
+        popups.addTarget(self, action: #selector(togglePopups(_:)), for: .valueChanged)
+        let smart = UISwitch()
+        smart.isOn = KeyboardPreferences.smartDictation
+        smart.addTarget(self, action: #selector(toggleSmartDictation(_:)), for: .valueChanged)
         let onDevice = UISwitch()
         onDevice.isOn = KeyboardPreferences.onDeviceDictation
         onDevice.addTarget(self, action: #selector(toggleOnDevice(_:)), for: .valueChanged)
@@ -964,6 +1040,8 @@ final class KeyboardViewController: UIInputViewController {
             makeSettingRow("Key sounds", sounds),
             makeSettingRow("Auto-capitalise", autoCap),
             makeSettingRow("Auto-correct", autoCorrect),
+            makeSettingRow("Key pop-ups", popups),
+            makeSettingRow("Tidy dictation and voice commands", smart),
             makeSettingRow("Dictate on device only (slower)", onDevice)
         ])
         stack.axis = .vertical
@@ -1015,6 +1093,8 @@ final class KeyboardViewController: UIInputViewController {
         refreshSuggestions()
     }
 
+    @objc private func togglePopups(_ sender: UISwitch) { KeyboardPreferences.keyPopups = sender.isOn }
+    @objc private func toggleSmartDictation(_ sender: UISwitch) { KeyboardPreferences.smartDictation = sender.isOn }
     @objc private func toggleOnDevice(_ sender: UISwitch) { KeyboardPreferences.onDeviceDictation = sender.isOn }
 
     // MARK: - Dictation
@@ -1042,7 +1122,10 @@ final class KeyboardViewController: UIInputViewController {
         guard capture.isReady else {
             return topBar.flashStatus("Microphone is still getting ready")
         }
-        let language = definition.localeIdentifier
+        let language = KeyboardPreferences.dictationLanguage ?? definition.localeIdentifier
+        dictationLanguage = language
+        // Their own names and terms, so the recogniser expects them.
+        dictationVocabulary = KeyboardPreferences.customVocabulary + personal.data.vocabulary(limit: 60)
         // Creating a recogniser is slow, so each language keeps its own.
         let speech = recognizers[language] ?? SFSpeechRecognizer(locale: Locale(identifier: language))
         guard let speech, speech.isAvailable else {
@@ -1054,8 +1137,11 @@ final class KeyboardViewController: UIInputViewController {
         insertedPartial = ""
         committedUtterances = 0
         lastCommitted = ""
+        committedShown = []
         capturedSamples = 0
         speechError = nil
+        typedLetters = []
+        lastAutocorrect = nil
         if searchQuery != nil { endSearch() }
 
         // Apple's server recognition is the default: it is quicker and more accurate than the
@@ -1071,6 +1157,7 @@ final class KeyboardViewController: UIInputViewController {
         request.shouldReportPartialResults = true
         request.addsPunctuation = true
         request.taskHint = .dictation
+        request.contextualStrings = dictationVocabulary
         if onDevice { request.requiresOnDeviceRecognition = true }
         usingOnDevice = onDevice
         self.request = request
@@ -1170,18 +1257,56 @@ final class KeyboardViewController: UIInputViewController {
     /// Keeps what has been typed and starts a fresh utterance after it.
     private func commitUtterance() {
         guard !insertedPartial.isEmpty else { return }
-        textDocumentProxy.insertText(" ")
-        lastCommitted = insertedPartial
+        let raw = insertedPartial
+        var shown = formatFinishedUtterance()
+        if !shown.isEmpty, !shown.hasSuffix("\n") {
+            textDocumentProxy.insertText(" ")
+            shown += " "
+        }
+        lastCommitted = raw
+        committedShown.append(shown)
         insertedPartial = ""
         committedUtterances += 1
+    }
+
+    /// Tidies the utterance the recogniser has finished with, in place, and returns
+    /// what the document now holds for it.
+    private func formatFinishedUtterance() -> String {
+        guard KeyboardPreferences.smartDictation else { return insertedPartial }
+        let result = DictationFormatter.format(insertedPartial, language: dictationLanguage)
+        var typed = insertedPartial
+        if result.deletesPrevious {
+            // "Scratch that": remove this utterance and the one before it.
+            let earlier = committedShown.popLast() ?? lastSentenceBeforeCursor(skipping: typed.count)
+            for _ in 0..<(typed.count + earlier.count) { textDocumentProxy.deleteBackward() }
+            typed = ""
+        }
+        if result.text != typed {
+            let common = zip(typed, result.text).prefix { $0 == $1 }.count
+            for _ in 0..<(typed.count - common) { textDocumentProxy.deleteBackward() }
+            textDocumentProxy.insertText(String(result.text.dropFirst(common)))
+        }
+        return result.text
+    }
+
+    /// The sentence that ends where this dictation began, for "scratch that" said first.
+    private func lastSentenceBeforeCursor(skipping count: Int) -> String {
+        let before = String((textDocumentProxy.documentContextBeforeInput ?? "").dropLast(count))
+        var characters = Array(before)
+        var taken: [Character] = []
+        while let last = characters.last, last == " " || ".!?".contains(last) { taken.append(characters.removeLast()) }
+        while let last = characters.last, !".!?\n".contains(last) { taken.append(characters.removeLast()) }
+        return String(taken.reversed())
     }
 
     private func replacePartial(with text: String) {
         guard text != insertedPartial else { return }
         // The transcript carried on after all instead of restarting: take the commit back
         // so the same words are not typed twice.
-        if insertedPartial.isEmpty, !lastCommitted.isEmpty, text.hasPrefix(lastCommitted) {
-            textDocumentProxy.deleteBackward()
+        if insertedPartial.isEmpty, !lastCommitted.isEmpty, text.hasPrefix(lastCommitted),
+           let shown = committedShown.popLast() {
+            for _ in shown { textDocumentProxy.deleteBackward() }
+            textDocumentProxy.insertText(lastCommitted)
             insertedPartial = lastCommitted
             lastCommitted = ""
             committedUtterances -= 1
@@ -1206,9 +1331,13 @@ final class KeyboardViewController: UIInputViewController {
     private func finishRecognition() {
         task = nil
         request = nil
-        // Leave the cursor ready for the next word.
-        if !insertedPartial.isEmpty { textDocumentProxy.insertText(" ") }
+        if !insertedPartial.isEmpty {
+            let shown = formatFinishedUtterance()
+            // Leave the cursor ready for the next word.
+            if !shown.isEmpty, !shown.hasSuffix("\n") { textDocumentProxy.insertText(" ") }
+        }
         insertedPartial = ""
+        committedShown = []
         topBar.setRecording(false)
         afterTextChange()
     }
@@ -1221,5 +1350,39 @@ private extension UILabel {
         label.font = .systemFont(ofSize: 14)
         label.textColor = .label
         return label
+    }
+}
+
+/// The enlarged letter shown above a key while it is pressed.
+final class KeyPreviewView: UIView {
+    private let label = UILabel()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        layer.cornerRadius = 9
+        layer.cornerCurve = .continuous
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.3
+        layer.shadowRadius = 5
+        layer.shadowOffset = CGSize(width: 0, height: 2)
+        label.font = .systemFont(ofSize: 32, weight: .regular)
+        label.textAlignment = .center
+        label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(label)
+        apply(theme: .dark)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func apply(theme: KeyboardTheme) {
+        backgroundColor = theme.isDark ? theme.keyPressed : .white
+        label.textColor = theme.label
+    }
+
+    func show(_ text: String) {
+        label.frame = bounds
+        label.text = text
+        isHidden = false
     }
 }

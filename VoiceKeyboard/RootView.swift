@@ -33,6 +33,10 @@ struct SetupView: View {
     @State private var onDeviceDictation = KeyboardPreferences.onDeviceDictation
     @State private var autoCorrect = KeyboardPreferences.autoCorrect
     @State private var didResetLearning = false
+    @State private var keyPopups = KeyboardPreferences.keyPopups
+    @State private var smartDictation = KeyboardPreferences.smartDictation
+    @State private var dictationLanguage = KeyboardPreferences.dictationLanguage ?? ""
+    @State private var vocabulary = KeyboardPreferences.customVocabulary.joined(separator: "\n")
 
     var body: some View {
         NavigationStack {
@@ -42,6 +46,7 @@ struct SetupView: View {
                     steps
                     permissions
                     settings
+                    dictation
                     footer
                 }
                 .padding(20)
@@ -129,6 +134,8 @@ struct SetupView: View {
                 .onChange(of: sounds) { _, newValue in KeyboardPreferences.sounds = newValue }
             Toggle("Auto-capitalise", isOn: $autoCapitalize)
                 .onChange(of: autoCapitalize) { _, newValue in KeyboardPreferences.autoCapitalize = newValue }
+            Toggle("Key pop-ups", isOn: $keyPopups)
+                .onChange(of: keyPopups) { _, newValue in KeyboardPreferences.keyPopups = newValue }
             Toggle("Auto-correct", isOn: $autoCorrect)
                 .onChange(of: autoCorrect) { _, newValue in KeyboardPreferences.autoCorrect = newValue }
             Button(didResetLearning ? "Learned typing cleared" : "Reset learned typing", role: .destructive) {
@@ -136,8 +143,59 @@ struct SetupView: View {
                 didResetLearning = true
             }
             .disabled(didResetLearning)
+        }
+        .padding(16)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// Languages the speech recogniser offers, by name.
+    private var dictationLanguages: [(id: String, name: String)] {
+        SFSpeechRecognizer.supportedLocales()
+            .map { (id: $0.identifier, name: Locale.current.localizedString(forIdentifier: $0.identifier) ?? $0.identifier) }
+            .sorted { $0.name < $1.name }
+    }
+
+    private var dictation: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Dictation")
+                .font(.headline)
+
+            Picker("Language", selection: $dictationLanguage) {
+                Text("Same as keyboard").tag("")
+                ForEach(dictationLanguages, id: \.id) { language in
+                    Text(language.name).tag(language.id)
+                }
+            }
+            .onChange(of: dictationLanguage) { _, newValue in
+                KeyboardPreferences.dictationLanguage = newValue.isEmpty ? nil : newValue
+            }
+
+            Toggle("Tidy dictation and voice commands", isOn: $smartDictation)
+                .onChange(of: smartDictation) { _, newValue in KeyboardPreferences.smartDictation = newValue }
+            Text("Drops “um” and repeated words when you stop. In English, say “new line”, “new paragraph” or “scratch that”.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
             Toggle("Dictate on device only (slower)", isOn: $onDeviceDictation)
                 .onChange(of: onDeviceDictation) { _, newValue in KeyboardPreferences.onDeviceDictation = newValue }
+
+            Text("Names and terms")
+                .font(.subheadline.weight(.medium))
+            TextEditor(text: $vocabulary)
+                .frame(minHeight: 90)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                .autocorrectionDisabled()
+                .onChange(of: vocabulary) { _, newValue in
+                    KeyboardPreferences.customVocabulary = newValue
+                        .split(whereSeparator: \.isNewline)
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                }
+            Text("One per line. Dictation listens for these, so names and jargon come out right.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))

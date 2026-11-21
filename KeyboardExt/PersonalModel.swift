@@ -19,6 +19,20 @@ struct PersonalModelData: Codable {
     var rejected: Set<String> = []
     /// Lowercased letter → average tap offset.
     var taps: [String: TapStat] = [:]
+    /// Lowercased word → the words typed straight after it, with counts.
+    var pairs: [String: [String: Int]] = [:]
+
+    init() {}
+
+    /// Fields are read one by one so a model saved by an older build still loads.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        words = try values.decodeIfPresent([String: Int].self, forKey: .words) ?? [:]
+        learned = try values.decodeIfPresent(Set<String>.self, forKey: .learned) ?? []
+        rejected = try values.decodeIfPresent(Set<String>.self, forKey: .rejected) ?? []
+        taps = try values.decodeIfPresent([String: TapStat].self, forKey: .taps) ?? [:]
+        pairs = try values.decodeIfPresent([String: [String: Int]].self, forKey: .pairs) ?? [:]
+    }
 
     static let tapSamplesBeforeUse = 25
 
@@ -41,6 +55,41 @@ struct PersonalModelData: Codable {
             .sorted { ($0.value, $1.key) > ($1.value, $0.key) }
             .prefix(limit)
             .map(\.key)
+    }
+
+    /// The words this person most often types after `previous`.
+    func nextWords(after previous: String, limit: Int) -> [String] {
+        guard let followers = pairs[previous.lowercased()] else { return [] }
+        return followers
+            .sorted { ($0.value, $1.key) > ($1.value, $0.key) }
+            .prefix(limit)
+            .map(\.key)
+    }
+
+    /// How often `word` has followed `previous`, for ranking completions.
+    func pairCount(_ previous: String, _ word: String) -> Int {
+        pairs[previous.lowercased()]?[word.lowercased()] ?? 0
+    }
+
+    /// Words they use that speech recognition may not know, most used first.
+    func vocabulary(limit: Int) -> [String] {
+        learned
+            .sorted { (count(of: $0), $1) > (count(of: $1), $0) }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    mutating func notePair(_ previous: String, _ word: String) {
+        let first = previous.lowercased(), second = word.lowercased()
+        guard !first.isEmpty, !second.isEmpty, first.count <= 32, second.count <= 32 else { return }
+        var followers = pairs[first] ?? [:]
+        followers[second, default: 0] += 1
+        // Keep the strongest few followers of each word, and forget one-off pairs when full.
+        if followers.count > 12, let weakest = followers.min(by: { ($0.value, $1.key) < ($1.value, $0.key) }) {
+            followers[weakest.key] = nil
+        }
+        pairs[first] = followers
+        if pairs.count > 1500 { pairs = pairs.filter { $0.value.values.reduce(0, +) > 1 } }
     }
 
     mutating func noteWord(_ word: String, knownToDictionary: Bool) {
